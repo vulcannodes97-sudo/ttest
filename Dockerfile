@@ -1,32 +1,37 @@
 FROM ubuntu:22.04
 
+ENV container docker
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && apt upgrade -y && \
-    apt install -y \
-    openssh-server \
-    cockpit \
-    cockpit-machines \
+# Update & upgrade
+RUN apt update && apt upgrade -y
+
+# Install Cockpit
+RUN apt install -y cockpit && \
+    systemctl enable cockpit.socket
+
+# Install KVM & libvirt stack
+RUN apt install -y \
     qemu-kvm \
     libvirt-daemon-system \
     libvirt-clients \
     bridge-utils \
-    sudo && \
-    apt clean
+    virt-manager && \
+    systemctl enable libvirtd
 
-# SSH setup
-RUN mkdir /var/run/sshd
-RUN echo 'root:root' | chpasswd
-RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-RUN sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
+# Install cockpit-machines
+RUN apt install -y cockpit-machines
 
 # Allow root in cockpit
 RUN if [ -f /etc/cockpit/disallowed-users ]; then \
     sed -i '/root/d' /etc/cockpit/disallowed-users; \
     fi
 
-# Expose ports
-EXPOSE 2222
+# Add root to libvirt & kvm groups
+RUN usermod -aG libvirt,kvm root
+
 EXPOSE 9090
 
-CMD ["/usr/sbin/sshd", "-D"]
+STOPSIGNAL SIGRTMIN+3
+
+CMD ["/sbin/init"]
